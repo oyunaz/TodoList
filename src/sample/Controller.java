@@ -1,7 +1,9 @@
 package sample;
 
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.transformation.FilteredList;
 import javafx.collections.transformation.SortedList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -22,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 public class Controller {
 
@@ -43,6 +46,12 @@ public class Controller {
 
     @FXML
     private ToggleButton filterToggleButton;
+
+    @FXML
+    private FilteredList<TodoItem> filteredList;
+
+    private Predicate<TodoItem> wantAllItems;
+    private Predicate<TodoItem> wantTodayItems;
 
     public void initialize(){
         listContextMenu = new ContextMenu();
@@ -68,13 +77,29 @@ public class Controller {
             }
         });
 
-        SortedList<TodoItem> sortedList = new SortedList<TodoItem>(TodoData.getInstance().getTodoItems(),
-                new Comparator<TodoItem>() {
-                    @Override
-                    public int compare(TodoItem o1, TodoItem o2) {
-                        return o1.getDeadLine().compareTo(o2.getDeadLine());
-                    }
-                });
+        wantAllItems = new Predicate<TodoItem>() {
+            @Override
+            public boolean test(TodoItem todoItem) {
+                return true;
+            }
+        };
+
+        wantTodayItems = new Predicate<TodoItem>() {
+            @Override
+            public boolean test(TodoItem todoItem) {
+                return (todoItem.getDeadLine().equals(LocalDate.now()));
+            }
+        };
+
+        filteredList = new FilteredList<TodoItem>(TodoData.getInstance().getTodoItems(),wantAllItems);
+
+                SortedList < TodoItem > sortedList = new SortedList<TodoItem>(filteredList  ,
+                        new Comparator<TodoItem>() {
+                            @Override
+                            public int compare(TodoItem o1, TodoItem o2) {
+                                return o1.getDeadLine().compareTo(o2.getDeadLine());
+                            }
+                        });
 
 //        todoListView.setItems(TodoData.getInstance().getTodoItems());
         todoListView.setItems(sortedList);
@@ -92,10 +117,12 @@ public class Controller {
                             setText(null);
                         }else {
                             setText(item.getShortDescription());
-                            if (item.getDeadLine().isBefore(LocalDate.now().plusDays(1))){
+                            if (item.getDeadLine().isBefore(LocalDate.now())){
                                 setTextFill(Color.RED);
                             }else if (item.getDeadLine().equals(LocalDate.now().plusDays(1))){
                                 setTextFill(Color.ORANGE);
+                            }else if (item.getDeadLine().equals(LocalDate.now())){
+                                setTextFill(Color.GREEN);
                             }
                         }
                     }
@@ -172,15 +199,38 @@ public class Controller {
         }
     }
 
-
+    @FXML
     public void handleFilterButton(){
+        TodoItem selectedItem = todoListView.getSelectionModel().getSelectedItem();
         if (filterToggleButton.isSelected()){
-
+            filteredList.setPredicate(wantTodayItems);
+            if(filteredList.isEmpty()){
+                itemDetailsTextArea.clear();
+                deadLineLabel.setText("");
+            }else if (filteredList.contains(selectedItem)){
+                todoListView.getSelectionModel().select(selectedItem);
+            }else{
+                todoListView.getSelectionModel().selectFirst();
+            }
         }else {
-
+            filteredList.setPredicate(wantAllItems);
+            todoListView.getSelectionModel().select(selectedItem);
         }
     }
 
+    @FXML
+    public void handleExit(){
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Exit");
+        alert.setHeaderText("Exit application");
+        alert.setContentText("Are you sure you want to Exit ?");
+        Optional<ButtonType> result = alert.showAndWait();
+        if(result.isPresent() && (result.get() == ButtonType.OK)){
+            Platform.exit();
+        }else {
+            alert.close();
+        }
+    }
 
 
 
